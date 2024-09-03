@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jeu du Serpent Console</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #1e5799 0%,#2989d8 50%,#207cca 51%,#7db9e8 100%);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+        }
+        #scoreContainer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 300px;
+            margin-bottom: 20px;
+        }
+        #score, #tokens {
+            color: white;
+            font-size: 24px;
+        }
+        #tokenIcon {
+            width: 30px;
+            height: 30px;
+            margin-right: 5px;
+        }
+        #joystickZone {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+        .menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+        }
+        .menu h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        .menu button {
+            font-size: 18px;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        .menu select {
+            font-size: 18px;
+            padding: 5px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="300" height="300"></canvas>
+    <div id="scoreContainer">
+        <div id="score">Score: 0</div>
+        <div id="tokens">
+            <img id="tokenIcon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjZmZkNzAwIiBkPSJNNTEyIDI1NmMwIDE0MS4zOC0xMTQuNjIgMjU2LTI1NiAyNTZTMCAzOTcuMzggMCAyNTYgMTE0LjYyIDAgMjU2IDBzMjU2IDExNC42MiAyNTYgMjU2ek0yNTYgNjRjLTEwNi4wNCAwLTE5MiA4NS45Ni0xOTIgMTkyIDg1Ljk2IDE5MiAxOTIgMTkyIDE5Mi0xOTIgMTkyLTg1Ljk2LTE5Mi0xOTItMTkyeiIvPjwvc3ZnPg==" alt="Token">
+            <span>0</span>
+        </div>
+    </div>
+    <div id="joystickZone"></div>
+    <div id="startMenu" class="menu">
+        <h1>Jeu du Serpent</h1>
+        <select id="snakeColor">
+            <option value="lime">Vert</option>
+            <option value="blue">Bleu</option>
+            <option value="yellow">Jaune</option>
+            <option value="purple">Violet</option>
+        </select>
+        <select id="snakeShape">
+            <option value="square">Carré</option>
+            <option value="circle">Cercle</option>
+        </select>
+        <button id="startButton">Commencer</button>
+    </div>
+    <div id="gameOverMenu" class="menu" style="display:none;">
+        <h1>Game Over</h1>
+        <p id="finalScore"></p>
+        <button id="restartButton">Recommencer</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const tokensElement = document.querySelector('#tokens span');
+        const startMenu = document.getElementById('startMenu');
+        const gameOverMenu = document.getElementById('gameOverMenu');
+        const finalScoreElement = document.getElementById('finalScore');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const snakeColorSelect = document.getElementById('snakeColor');
+        const snakeShapeSelect = document.getElementById('snakeShape');
+
+        const gridSize = 15;
+        const tileCount = canvas.width / gridSize;
+
+        let snake = [{x: 10, y: 10}];
+        let food = {x: 5, y: 5};
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let tokens = 0;
+        let particles = [];
+        let snakeColor = 'lime';
+        let snakeShape = 'square';
+
+        function drawGame() {
+            clearCanvas();
+            moveSnake();
+            updateParticles();
+            drawParticles();
+            drawSnake();
+            drawFood();
+            checkCollision();
+            updateScore();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function moveSnake() {
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                tokens++;
+                generateFood();
+                updateTokens();
+            } else {
+                snake.pop();
+            }
+            createParticles(head.x, head.y);
+        }
+
+        function drawSnake() {
+            ctx.fillStyle = snakeColor;
+            snake.forEach(segment => {
+                if (snakeShape === 'square') {
+                    ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(segment.x * gridSize + gridSize/2, segment.y * gridSize + gridSize/2, gridSize/2 - 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2 - 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function generateFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver();
+                    return;
+                }
+            }
+        }
+
+        function updateScore() {
+            scoreElement.textContent = `Score: ${score}`;
+        }
+
+        function updateTokens() {
+            tokensElement.textContent = tokens;
+            const tokenIcon = document.getElementById('tokenIcon');
+            tokenIcon.style.transform = 'scale(1.2)';
+            setTimeout(() => {
+                tokenIcon.style.transform = 'scale(1)';
+            }, 200);
+        }
+
+        function resetGame() {
+            snake = [{x: 10, y: 10}];
+            food = {x: 5, y: 5};
+            dx = 0;
+            dy = 0;
+            score = 0;
+            tokens = 0;
+            particles = [];
+            updateScore();
+            updateTokens();
+        }
+
+        function createParticles(x, y) {
+            for (let i = 0; i < 2; i++) {
+                particles.push({
+                    x: x * gridSize + gridSize / 2,
+                    y: y * gridSize + gridSize / 2,
+                    radius: Math.random() * 2 + 0.5,
+                    color: snakeColor,
+                    speed: Math.random() * 1 + 0.5,
+                    angle: Math.random() * Math.PI * 2,
+                    life: 20
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += Math.cos(p.angle) * p.speed;
+                p.y += Math.sin(p.angle) * p.speed;
+                p.life--;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 20;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        function gameOver() {
+            clearInterval(gameInterval);
+            finalScoreElement.textContent = `Score final: ${score}`;
+            gameOverMenu.style.display = 'flex';
+        }
+
+        let gameInterval;
+
+        function startGame() {
+            resetGame();
+            startMenu.style.display = 'none';
+            gameOverMenu.style.display = 'none';
+            snakeColor = snakeColorSelect.value;
+            snakeShape = snakeShapeSelect.value;
+            gameInterval = setInterval(drawGame, 100);
+        }
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // Création du joystick
+        const joystick = nipplejs.create({
+            zone: document.getElementById('joystickZone'),
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'white',
+            size: 150
+        });
+
+        // Gestion des événements du joystick
+        joystick.on('move', (evt, data) => {
+            const angle = data.angle.degree;
+            if (angle > 45 && angle <= 135) {
+                dx = 0; dy = -1;  // Haut
+            } else if (angle > 135 && angle <= 225) {
+                dx = -1; dy = 0;  // Gauche
+            } else if (angle > 225 && angle <= 315) {
+                dx = 0; dy = 1;   // Bas
+            } else {
+                dx = 1; dy = 0;   // Droite
+            }
+        });
+    </script>
+</body>
+          </html>
